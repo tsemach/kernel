@@ -37,7 +37,8 @@ static struct _proxy_private {
 	struct class       *_class;
 	struct device  	   *_device;
 	struct timer_list	_timer;
-	wait_queue_head_t	_wqueue;
+	wait_queue_head_t	_rd_wqueue;
+	wait_queue_head_t	_wr_wqueue;
 	int 				_opens;
 	int					_closes;
 	char 				_buff[1024];
@@ -72,7 +73,7 @@ proxy_read(struct file *_file, char __user *_buff, size_t _count, loff_t *_offp)
 		if (_file->f_flags & O_NONBLOCK) {
 			return -EAGAIN;
 		}
-		rc = wait_event_interruptible(p_data->_wqueue, ((p_data->_buff_wp - p_data->_buff_rp) >= (int)_count));
+		rc = wait_event_interruptible(p_data->_rd_wqueue, ((p_data->_buff_wp - p_data->_buff_rp) >= (int)_count));
 		if (rc) {
 			return -ERESTARTSYS;
 		}
@@ -106,6 +107,8 @@ proxy_write(struct file *_file, const char __user *_buff, size_t _count, loff_t 
 	if (p_data->_buff_wp >= sizeof(p_data->_buff)) {
 		printk(KERN_INFO "proxy_write: buffer is empty");
 
+		// need to implement write wait queue
+		// add wait_event_interruptible
 		return 0;
 	}
 		
@@ -117,7 +120,7 @@ proxy_write(struct file *_file, const char __user *_buff, size_t _count, loff_t 
 	p_data->_buff_wp += _count;
 	proxy_private._nwrites += _count;
 
-	wake_up_interruptible(&(p_data->_wqueue));
+	wake_up_interruptible(&(p_data->_rd_wqueue));
 	printk(KERN_INFO "proxy_write: copy_to_user %i bytes, p_data->_buff_wp = %i", rc, p_data->_buff_wp);
 
 	return _count;	
@@ -238,7 +241,8 @@ static int __init tsemach_init(void)
 		goto revert_device_create;
 	}
 
-	init_waitqueue_head(&(proxy_private._wqueue));
+	init_waitqueue_head(&(proxy_private._rd_wqueue));
+	init_waitqueue_head(&(proxy_private._wr_wqueue));
 
 	return 0;
 
