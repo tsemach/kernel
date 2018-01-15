@@ -1,4 +1,4 @@
-obj-m := driver.o
+obj-m := proxy.o
 ROOTDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
